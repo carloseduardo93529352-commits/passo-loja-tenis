@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sua Marca</title>
+    <script>
+        if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+        if (localStorage.getItem("site-theme") === "dark") document.documentElement.dataset.theme = "dark";
+    </script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="inicio" id="top">
+        <div class="titulo1">
+            <svg class="marca-simbolo" viewBox="0 0 80 80" aria-hidden="true">
+                <path class="marca-c" d="M64 16H32L18 30V50L32 64H64"/>
+            </svg>
+            <h3 class="marca-nome"><span class="marca-sua">Sua</span><span class="marca-palavra">Marca</span></h3>
+        </div>
+        <nav class="liquid-glass" aria-label="Navegação principal">
+            <span class="menu-pilula" role="slider" tabindex="0" aria-label="Selecionar item do menu" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0" aria-valuetext="Início"></span>
+            <a href="#top" aria-current="page">Início</a>
+            <a href="#sobre-nos">Sobre</a>
+            <a href="#servicos">Serviços</a>
+            <a href="#depoimentos">Depoimentos</a>
+            <a href="#contato">Contato</a>
+        </nav>
+        <div class="inicio-acoes">
+            <button class="theme-toggle" type="button" aria-label="Ativar tema escuro" title="Ativar tema escuro" aria-pressed="false">
+                <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/>
+                </svg>
+                <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4"/>
+                    <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>
+                </svg>
+            </button>
+            <button class="inicio-cta" type="button">Fale Conosco</button>
+        </div>
+    </div>
+    <script>
+        const nav = document.querySelector(".inicio nav");
+        const header = nav.closest(".inicio");
+        const pill = nav.querySelector(".menu-pilula");
+        const links = [...nav.querySelectorAll("a")];
+        let activeIndex = Math.max(0, links.findIndex(link => link.hasAttribute("aria-current")));
+        let pointerDown = false;
+        let dragging = false;
+        let activePointerId = null;
+        let dragStartX = 0;
+        let startPillLeft = 0;
+        let ignoreClick = false;
+
+        function setCurrent(index, movePill = true) {
+            activeIndex = Math.max(0, Math.min(index, links.length - 1));
+            const activeLink = links[activeIndex];
+
+            links.forEach((link, linkIndex) => {
+                if (linkIndex === activeIndex) {
+                    link.setAttribute("aria-current", "page");
+                } else {
+                    link.removeAttribute("aria-current");
+                }
+            });
+
+            pill.setAttribute("aria-valuenow", String(activeIndex));
+            pill.setAttribute("aria-valuetext", activeLink.textContent.trim());
+
+            if (movePill) {
+                const navRect = nav.getBoundingClientRect();
+                const linkRect = activeLink.getBoundingClientRect();
+                pill.style.left = `${linkRect.left - navRect.left - nav.clientLeft}px`;
+                pill.style.width = `${linkRect.width}px`;
+                pill.style.height = `${linkRect.height}px`;
+            }
+        }
+
+        function nearestLinkIndex(pointerX) {
+            const navRect = nav.getBoundingClientRect();
+            const pillCenter = pointerX ?? navRect.left + nav.clientLeft + Number.parseFloat(pill.style.left) + pill.offsetWidth / 2;
+
+            return links.reduce((nearestIndex, link, index) => {
+                const linkRect = link.getBoundingClientRect();
+                const linkCenter = linkRect.left + linkRect.width / 2;
+                const nearestRect = links[nearestIndex].getBoundingClientRect();
+                const nearestCenter = nearestRect.left + nearestRect.width / 2;
+                return Math.abs(linkCenter - pillCenter) < Math.abs(nearestCenter - pillCenter)
+                    ? index
+                    : nearestIndex;
+            }, 0);
+        }
+
+        function linkUnderPillIndex() {
+            const pillRect = pill.getBoundingClientRect();
+            let selectedIndex = -1;
+            let largestOverlap = 0;
+
+            links.forEach((link, index) => {
+                const linkRect = link.getBoundingClientRect();
+                const overlap = Math.max(0, Math.min(pillRect.right, linkRect.right) - Math.max(pillRect.left, linkRect.left));
+                if (overlap > largestOverlap) {
+                    selectedIndex = index;
+                    largestOverlap = overlap;
+                }
+            });
+
+            return selectedIndex >= 0 ? selectedIndex : nearestLinkIndex();
+        }
+
+        function animateSelection(index) {
+            setCurrent(index);
+            pill.classList.remove("is-zooming");
+            links.forEach(link => link.classList.remove("is-zooming"));
+            void pill.offsetWidth;
+            void links[index].offsetWidth;
+            pill.classList.add("is-zooming");
+            links[index].classList.add("is-zooming");
+        }
+
+        pill.addEventListener("animationend", () => pill.classList.remove("is-zooming"));
+        links.forEach(link => link.addEventListener("animationend", () => link.classList.remove("is-zooming")));
+
+        nav.addEventListener("pointerdown", event => {
+            if (!event.isPrimary || event.button !== 0) return;
+
+            const link = event.target.closest("a");
+            const pillRect = pill.getBoundingClientRect();
+            const startsOnPill = link === links[activeIndex]
+                && event.clientX >= pillRect.left
+                && event.clientX <= pillRect.right
+                && event.clientY >= pillRect.top
+                && event.clientY <= pillRect.bottom;
+            if (!startsOnPill) return;
+
+            pointerDown = true;
+            dragging = false;
+            activePointerId = event.pointerId;
+            dragStartX = event.clientX;
+            startPillLeft = Number.parseFloat(pill.style.left) || 0;
+        });
+
+        window.addEventListener("pointermove", event => {
+            if (!pointerDown) {
+                if (event.pointerType === "mouse") {
+                    const pillRect = pill.getBoundingClientRect();
+                    pill.classList.toggle("is-hovered", event.clientX >= pillRect.left
+                        && event.clientX <= pillRect.right
+                        && event.clientY >= pillRect.top
+                        && event.clientY <= pillRect.bottom);
+                }
+                return;
+            }
+            if (event.pointerId !== activePointerId) return;
+
+            const deltaX = event.clientX - dragStartX;
+            if (!dragging && Math.abs(deltaX) > 5) {
+                dragging = true;
+                pill.classList.add("is-dragging");
+                nav.classList.add("is-dragging");
+                nav.setPointerCapture(event.pointerId);
+            }
+            if (!dragging) return;
+
+            event.preventDefault();
+            const maxLeft = nav.clientWidth - pill.offsetWidth;
+            const left = Math.max(0, Math.min(startPillLeft + deltaX, maxLeft));
+            pill.style.left = `${left}px`;
+            setCurrent(linkUnderPillIndex(), false);
+        });
+
+        window.addEventListener("pointerup", event => {
+            if (!pointerDown || event.pointerId !== activePointerId) return;
+
+            if (dragging) {
+                setCurrent(nearestLinkIndex());
+                pill.classList.remove("is-dragging");
+                nav.classList.remove("is-dragging");
+                ignoreClick = true;
+                setTimeout(() => { ignoreClick = false; }, 0);
+            }
+
+            pointerDown = false;
+            dragging = false;
+            activePointerId = null;
+        });
+
+        window.addEventListener("pointercancel", event => {
+            if (!pointerDown || event.pointerId !== activePointerId) return;
+
+            pointerDown = false;
+            dragging = false;
+            pill.classList.remove("is-dragging");
+            nav.classList.remove("is-dragging");
+            setCurrent(activeIndex);
+            activePointerId = null;
+        });
+
+        nav.addEventListener("click", event => {
+            const link = event.target.closest("a");
+            if (ignoreClick) {
+                if (link) event.preventDefault();
+                ignoreClick = false;
+                return;
+            }
+
+            if (link?.getAttribute("href") === "") event.preventDefault();
+            const clickedIndex = link ? links.indexOf(link) : nearestLinkIndex(event.clientX);
+            animateSelection(clickedIndex);
+        });
+
+        pill.addEventListener("keydown", event => {
+            let nextIndex = activeIndex;
+            if (event.key === "ArrowRight" || event.key === "ArrowUp") nextIndex++;
+            else if (event.key === "ArrowLeft" || event.key === "ArrowDown") nextIndex--;
+            else if (event.key === "Home") nextIndex = 0;
+            else if (event.key === "End") nextIndex = links.length - 1;
+            else return;
+
+            event.preventDefault();
+            setCurrent(nextIndex);
+        });
+
+        setCurrent(activeIndex);
+        let headerHeight = 0;
+        const updateHeaderOnScroll = () => header.classList.toggle("is-scrolled", window.scrollY >= headerHeight);
+        const updateHeaderHeight = () => {
+            header.classList.remove("is-scrolled");
+            headerHeight = header.offsetHeight;
+            header.style.setProperty("--inicio-height", `${headerHeight}px`);
+            updateHeaderOnScroll();
+        };
+        window.addEventListener("resize", () => {
+            setCurrent(activeIndex);
+            updateHeaderHeight();
+        });
+        updateHeaderHeight();
+        window.addEventListener("scroll", updateHeaderOnScroll, { passive: true });
+    </script>
+    <section class="hero" id="inicio" aria-labelledby="hero-titulo">
+        <div class="hero-imagem">
+            <img
+                src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&amp;fit=crop&amp;w=1800&amp;q=85"
+                alt="Notebook moderno aberto sobre uma mesa em um ambiente de trabalho tecnológico"
+                fetchpriority="high">
+        </div>
+        <div class="hero-conteudo">
+            <div class="hero-decoracao" aria-hidden="true">
+                <span class="hero-orbita hero-orbita-grande"></span>
+                <span class="hero-orbita hero-orbita-pequena"></span>
+            </div>
+            <p class="hero-etiqueta">Tecnologia que impulsiona</p>
+            <h2 id="hero-titulo">Transforme suas ideias em <span>realidade</span></h2>
+            <p class="hero-descricao">Soluções digitais inteligentes, parceria próxima e tecnologia para levar seu negócio mais longe.</p>
+            <div class="hero-acoes">
+                <button class="hero-botao hero-botao-principal" type="button">Comece Agora <span aria-hidden="true">→</span></button>
+                <button class="hero-botao hero-botao-secundario" type="button">Saiba Mais</button>
+            </div>
+        </div>
+    </section>
+    <div class="qualidade">
+        <article class="qualidade-card">
+            <svg class="qualidade-icone" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M29 7c-7 3-12 9-15 17l10 10c8-3 14-8 17-15l-2-10-10-2Z"/>
+                <circle cx="30" cy="18" r="3.5"/>
+                <path d="m15 23-7 1-3 8 11-2m8 4-2 8 8-3 1-7M14 31c-4 2-6 5-6 9 4 0 7-2 9-6"/>
+            </svg>
+            <h3>Inovação</h3>
+            <p>Soluçoes modernas para seu negócio.</p>
+        </article>
+        <article class="qualidade-card">
+            <svg class="qualidade-icone" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="10" y="21" width="28" height="22" rx="4"/>
+                <path d="M16 21v-6a8 8 0 0 1 16 0v6"/>
+                <circle cx="24" cy="31" r="2"/>
+                <path d="M24 33v4"/>
+            </svg>
+            <h3>Segurança</h3>
+            <p>Seus dados sempre protegidos.</p>
+        </article>
+        <article class="qualidade-card">
+            <svg class="qualidade-icone" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M8 27v-4a16 16 0 0 1 32 0v4"/>
+                <rect x="6" y="25" width="8" height="13" rx="3"/>
+                <rect x="34" y="25" width="8" height="13" rx="3"/>
+                <path d="M38 38a8 8 0 0 1-8 6h-5"/>
+                <rect x="21" y="41" width="5" height="3" rx="1.5"/>
+            </svg>
+            <h3>Suporte Especializado</h3>
+            <p>Estamos sempre por perto.</p>
+        </article>
+        <article class="qualidade-card">
+            <svg class="qualidade-icone" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M7 41V8m0 33h34"/>
+                <path d="m13 32 9-9 7 5 12-15"/>
+                <path d="M31 13h10v10"/>
+            </svg>
+            <h3>Resultados Reais</h3>
+            <p>Crescimento sustentável para o seu negocio.</p>
+        </article>
+    </div>
+    <section class="about" id="sobre-nos" aria-labelledby="sobre-nos-titulo">
+        <div class="about-imagem">
+            <img
+                src="https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&amp;fit=crop&amp;w=1200&amp;q=85"
+                alt="Equipe colaborando em torno de um notebook em um escritório moderno"
+                loading="lazy">
+        </div>
+        <div class="about-conteudo">
+            <p class="about-etiqueta">Sobre Nós</p>
+            <h2 id="sobre-nos-titulo">Inovação, dedicação e compromisso <span>com você.</span></h2>
+            <p class="about-descricao">Somos uma empresa de tecnologia comprometida com inovação, transparência e parceria. Criamos soluções digitais que simplificam desafios, impulsionam negócios e ajudam nossos clientes a alcançar resultados sustentáveis.</p>
+            <button class="about-botao" type="button">Conheça Mais <span aria-hidden="true">→</span></button>
+        </div>
+    </section>
+    <section class="services" id="servicos">
+        <div class="services-container">
+            <div class="services-header">
+                <span class="section-tag">O que oferecemos</span>
+                <h2>Soluções pensadas para <span>fazer sua empresa crescer.</span></h2>
+                <p>Criamos soluções digitais modernas para transformar ideias em resultados reais.</p>
+            </div>
+            <div class="services-grid">
+                <article class="service-card">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M4 5h16v14H4z" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.8"/>
+                        </svg>
+                    </div>
+                    <h3>Desenvolvimento Web</h3>
+                    <p>Criamos sites modernos, rápidos, responsivos e preparados para oferecer uma excelente experiência aos seus clientes.</p>
+                    <a href="#">Saiba mais <span aria-hidden="true">→</span></a>
+                </article>
+                <article class="service-card">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8"/>
+                        </svg>
+                    </div>
+                    <h3>Design &amp; Identidade</h3>
+                    <p>Desenvolvemos identidades visuais marcantes e experiências digitais que representam a essência da sua marca.</p>
+                    <a href="#">Saiba mais <span aria-hidden="true">→</span></a>
+                </article>
+                <article class="service-card">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M4 17l5-5 4 4 7-8" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M17 8h3v3" stroke="currentColor" stroke-width="1.8"/>
+                        </svg>
+                    </div>
+                    <h3>Marketing Digital</h3>
+                    <p>Estratégias digitais para aumentar sua presença online, alcançar novas pessoas e gerar mais oportunidades.</p>
+                    <a href="#">Saiba mais <span aria-hidden="true">→</span></a>
+                </article>
+                <article class="service-card">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7l7-4z" stroke="currentColor" stroke-width="1.8"/>
+                            <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8"/>
+                        </svg>
+                    </div>
+                    <h3>Soluções Personalizadas</h3>
+                    <p>Projetos desenvolvidos de acordo com as necessidades, objetivos e desafios específicos da sua empresa.</p>
+                    <a href="#">Saiba mais <span aria-hidden="true">→</span></a>
+                </article>
+            </div>
+        </div>
+    </section>
+    <section class="depoimentos" id="depoimentos" aria-labelledby="depoimentos-titulo">
+        <header class="depoimentos-cabecalho">
+            <p class="depoimentos-etiqueta">Depoimentos</p>
+            <h2 id="depoimentos-titulo">O que nossos clientes dizem</h2>
+            <p class="depoimentos-introducao">Resultados reais e experiências de quem confia no nosso trabalho.</p>
+        </header>
+        <div class="depoimentos-grade">
+            <article class="depoimento-card">
+                <div class="depoimento-cliente">
+                    <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&amp;fit=crop&amp;w=120&amp;h=120&amp;q=80" alt="" loading="lazy">
+                    <div>
+                        <h3>João Silva</h3>
+                        <p>CEO — Tech Solutions</p>
+                    </div>
+                </div>
+                <div class="depoimento-estrelas" role="img" aria-label="5 de 5 estrelas">
+                    <span aria-hidden="true">★★★★★</span>
+                </div>
+                <blockquote>
+                    <p>“Desde que começamos a trabalhar com a equipe, nossa presença digital mudou completamente. O resultado superou nossas expectativas.”</p>
+                </blockquote>
+            </article>
+            <article class="depoimento-card">
+                <div class="depoimento-cliente">
+                    <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&amp;fit=crop&amp;w=120&amp;h=120&amp;q=80" alt="" loading="lazy">
+                    <div>
+                        <h3>Mariana Costa</h3>
+                        <p>Diretora — Nova Empresa</p>
+                    </div>
+                </div>
+                <div class="depoimento-estrelas" role="img" aria-label="5 de 5 estrelas">
+                    <span aria-hidden="true">★★★★★</span>
+                </div>
+                <blockquote>
+                    <p>“Profissionais extremamente competentes e atenciosos. O projeto ficou muito melhor do que imaginávamos.”</p>
+                </blockquote>
+            </article>
+            <article class="depoimento-card">
+                <div class="depoimento-cliente">
+                    <img src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&amp;fit=crop&amp;w=120&amp;h=120&amp;q=80" alt="" loading="lazy">
+                    <div>
+                        <h3>Lucas Almeida</h3>
+                        <p>Empreendedor</p>
+                    </div>
+                </div>
+                <div class="depoimento-estrelas" role="img" aria-label="5 de 5 estrelas">
+                    <span aria-hidden="true">★★★★★</span>
+                </div>
+                <blockquote>
+                    <p>“Excelente experiência. Tudo foi feito com muito cuidado, qualidade e atenção aos detalhes.”</p>
+                </blockquote>
+            </article>
+        </div>
+    </section>
+    <section class="contato" id="contato" aria-labelledby="contato-titulo">
+        <div class="contato-conteudo">
+            <p class="contato-etiqueta">Vamos conversar?</p>
+            <h2 class="contato-titulo" id="contato-titulo">Pronto para transformar sua ideia em realidade?</h2>
+            <p class="contato-descricao">Entre em contato com nossa equipe e descubra como podemos ajudar sua empresa a crescer.</p>
+            <div class="contato-acoes">
+                <button class="contato-botao contato-botao-principal" type="button">Fale Conosco <span aria-hidden="true">→</span></button>
+                <button class="contato-botao contato-botao-secundario" type="button">Solicitar Orçamento</button>
+            </div>
+        </div>
+    </section>
+    <script>
+        const contactSection = document.querySelector(".contato");
+        if (contactSection && "IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            contactSection.classList.add("contato-animando");
+            const contactObserver = new IntersectionObserver(entries => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting) {
+                        contactSection.classList.add("is-visible");
+                        contactObserver.unobserve(entry.target);
+                    }
+                }
+            }, { threshold: 0.18 });
+            contactObserver.observe(contactSection);
+        }
+    </script>
+    <script>
+        const themeToggle = document.querySelector(".theme-toggle");
+        const themeRoot = document.documentElement;
+
+        function syncThemeToggle() {
+            const isDark = themeRoot.dataset.theme === "dark";
+            const label = isDark ? "Ativar tema claro" : "Ativar tema escuro";
+            themeToggle.setAttribute("aria-pressed", String(isDark));
+            themeToggle.setAttribute("aria-label", label);
+            themeToggle.title = label;
+        }
+
+        themeToggle.addEventListener("click", () => {
+            const isDark = themeRoot.dataset.theme !== "dark";
+            if (isDark) {
+                themeRoot.dataset.theme = "dark";
+            } else {
+                delete themeRoot.dataset.theme;
+            }
+            localStorage.setItem("site-theme", isDark ? "dark" : "light");
+            syncThemeToggle();
+        });
+
+        syncThemeToggle();
+
+        const resetPageScroll = () => window.scrollTo(0, 0);
+        window.addEventListener("pageshow", resetPageScroll);
+        resetPageScroll();
+    </script>
+</body>
+</html>
